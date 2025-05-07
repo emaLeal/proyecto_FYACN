@@ -79,8 +79,8 @@ full_dataset = PokemonDataset(df, image_dir, transform=transform)
 train_size = int(0.8 * len(full_dataset))
 val_size = len(full_dataset) - train_size
 train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=128)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=64)
 
 # --- Modelo ---
 input_size = 3 * 28 * 28
@@ -107,9 +107,9 @@ weights = torch.tensor(weights, dtype=torch.float32)
 
 # --- Entrenamiento ---
 criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-epochs = 100
-print_every = 70
+optimizer = optim.Adam(model.parameters(), lr=0.005)
+epochs = 10
+print_every = 5
 steps = 0
 
 for e in range(epochs):
@@ -123,14 +123,16 @@ for e in range(epochs):
         optimizer.step()
 
         running_loss += loss.item()
-        if steps % print_every == 0:
-            print(f"Epoch {e+1}/{epochs}.. "
-                  f"Step {steps}.. "
-                  f"Train loss: {running_loss/print_every:.4f}")
-            running_loss = 0
+    
+        running_loss = 0
+        
 
 # --- Validación con imagen aleatoria ---
 pokemon_name = choose_pokemon(df)
+pokemon_row = df[df["Name"] == pokemon_name].iloc[0]
+true_type = pokemon_row["type"]
+true_type_idx = type_to_idx[true_type]
+
 filename = pokemon_name.lower().replace(" ", "-") + ".png"
 img_path = os.path.join(image_dir, filename)
 
@@ -141,14 +143,16 @@ val_loss = 0
 val_accuracy = 0
 model.eval()
 with torch.no_grad():
-    for images, labels in val_loader:
-        output = model(images)
-        val_loss += criterion(output, labels).item()
-        ps = F.softmax(output, dim=1)
-        top_p, top_class = ps.topk(1, dim=1)
-        equals = top_class.squeeze() == labels
-        val_accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
+    output = model(image_tensor)
+    ps = F.softmax(output, dim=1)
+    top_p, top_class = ps.topk(1, dim=1)
+    print(f"top_p: {top_p}, top_class: {top_class}")
+    predicted_type = idx_to_type[top_class.item()]
+
 model.train()
+print(f"Pokémon elegido: {pokemon_name}")
+print(f"Tipo real: {true_type} ({true_type_idx})")
+print(f"Predicción del tipo para {pokemon_name}: {predicted_type}")
 
 # --- Visualización ---
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
