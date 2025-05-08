@@ -132,8 +132,8 @@ weights = [total / class_counts[i] for i in range(len(type_to_idx))]
 weights = torch.tensor(weights, dtype=torch.float32)
 criterion = nn.CrossEntropyLoss(weight=weights)
 
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-epochs = 15
+optimizer = optim.Adam(model.parameters(), lr=0.003)
+epochs = 30
 
 if not skip_training:
     for epoch in range(epochs):
