@@ -29,6 +29,8 @@ def translate_types(type_dict):
     }
     return [translated_types[k] for k in type_dict]
 
+
+
 # --- Dataset personalizado ---
 class PokemonDataset(Dataset):
     def __init__(self, dataframe, image_dir, transform=None):
@@ -70,7 +72,7 @@ idx_to_type = {i: t for t, i in type_to_idx.items()}
 types_spanish = translate_types(type_to_idx)
 # --- Preprocesamiento ---
 transform = transforms.Compose([
-    transforms.Resize((28, 28)),
+    transforms.Resize((128, 128)),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
@@ -83,8 +85,8 @@ train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=64)
 
 # --- Modelo ---
-input_size = 3 * 28 * 28
-hidden_sizes = [300, 300, 300]
+input_size = 3 * 128 * 128
+hidden_sizes = [512, 256, 128]
 output_size = len(types)
 
 model = nn.Sequential(OrderedDict([
@@ -107,11 +109,9 @@ weights = torch.tensor(weights, dtype=torch.float32)
 
 # --- Entrenamiento ---
 criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = optim.Adam(model.parameters(), lr=0.005)
-epochs = 10
-print_every = 5
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
+epochs = 30
 steps = 0
-
 for e in range(epochs):
     running_loss = 0
     for images, labels in train_loader:
@@ -123,7 +123,6 @@ for e in range(epochs):
         optimizer.step()
 
         running_loss += loss.item()
-    
         running_loss = 0
         
 
@@ -144,10 +143,12 @@ val_accuracy = 0
 model.eval()
 with torch.no_grad():
     output = model(image_tensor)
+    loss = criterion(output, torch.tensor([true_type_idx]))  # Etiqueta real
     ps = F.softmax(output, dim=1)
     top_p, top_class = ps.topk(1, dim=1)
-    print(f"top_p: {top_p}, top_class: {top_class}")
     predicted_type = idx_to_type[top_class.item()]
+
+print(f"Loss de evaluación para {pokemon_name}: {loss.item():.4f}")
 
 model.train()
 print(f"Pokémon elegido: {pokemon_name}")
@@ -160,8 +161,9 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 ax1.imshow(image)
 ax1.axis('off')
 ax1.set_title(f"Imagen: {pokemon_name.capitalize()}")
-
-ax2.bar(types_spanish, ps.numpy()[0], color='skyblue')
+colors = ['skyblue'] * len(types_spanish)
+colors[true_type_idx] = 'green'  # marca el tipo real
+ax2.bar(types_spanish, ps.numpy()[0], color=colors)
 ax2.set_ylim(0, 1)
 ax2.set_xticklabels(types_spanish, rotation=45, ha="right")
 ax2.set_ylabel("Probabilidad")
