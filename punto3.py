@@ -99,6 +99,16 @@ model = nn.Sequential(OrderedDict([
     ('output', nn.Linear(hidden_sizes[2], output_size))
 ]))
 
+# Si el modelo ya fue guardado, lo cargamos
+model_path = "pokemon_model.pth"
+if os.path.exists(model_path):
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Modelo cargado desde disco. Saltando entrenamiento.")
+    skip_training = True
+else:
+    skip_training = False
+
 labels = df["type"].map(type_to_idx)
 class_counts = Counter(labels)
 total = max(class_counts.values())
@@ -112,20 +122,27 @@ criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = optim.Adam(model.parameters(), lr=0.0001)
 epochs = 30
 steps = 0
-for e in range(epochs):
-    running_loss = 0
-    for images, labels in train_loader:
-        steps += 1
-        optimizer.zero_grad()
-        output = model(images)
-        loss = criterion(output, labels)
-        loss.backward()
-        optimizer.step()
-
-        running_loss += loss.item()
+if not skip_training:
+    for e in range(epochs):
         running_loss = 0
-        
+        for images, labels in train_loader:
+            steps += 1
+            optimizer.zero_grad()
+            output = model(images)
+            loss = criterion(output, labels)
+            loss.backward()
+            optimizer.step()
 
+            running_loss += loss.item()
+            running_loss = 0
+
+    torch.save(model.state_dict(), model_path)
+    print("Modelo entrenado y guardado.")
+
+        
+# Guardar el modelo entrenado
+torch.save(model.state_dict(), "pokemon_model.pth")
+print("Modelo guardado como pokemon_model.pth")
 # --- Validación con imagen aleatoria ---
 pokemon_name = choose_pokemon(df)
 pokemon_row = df[df["Name"] == pokemon_name].iloc[0]
@@ -140,7 +157,6 @@ image_tensor = transform(image).view(1, -1)
 
 val_loss = 0
 val_accuracy = 0
-model.eval()
 with torch.no_grad():
     output = model(image_tensor)
     loss = criterion(output, torch.tensor([true_type_idx]))  # Etiqueta real
